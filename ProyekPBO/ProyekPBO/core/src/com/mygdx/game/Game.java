@@ -57,14 +57,13 @@ public class Game extends ApplicationAdapter {
 		batch = new SpriteBatch();
 		HeartsTexture = new Texture("heart.png");
 		PlayerTexture = new Texture("player.png");
-		EnemyTexture = new Texture("enemy.png");
+		EnemyTexture = new Texture("alien_type1.png");
 		ProjectileTexture=new Texture("projectile.png");
 		font = new BitmapFont();
 		font.getData().setScale(2);
 
 		explodingSound = Gdx.audio.newSound(Gdx.files.internal("explodingSound.wav"));
 		shootSound = Gdx.audio.newSound(Gdx.files.internal("shootSound.mp3"));
-//		crashSound = Gdx.audio.newSound(Gdx.files.internal("crashSound.wav"));
 
 		player = new com.badlogic.gdx.math.Rectangle();
 		player.x = 800/2 - 64/2;
@@ -90,12 +89,13 @@ public class Game extends ApplicationAdapter {
 	private void spawnProjectile() {
 		if (!isProjectileActive) {
 			Rectangle projectile = new Rectangle();
-			projectile.y = player.y - 35;
-			projectile.x = player.x - 46;
+			projectile.y = player.y ;
+			projectile.x = player.x + 15;
 			projectile.setHeight(32);
 			projectile.setWidth(32);
 			projectiles.add(projectile);
 			isProjectileActive = true;
+			shootSound.play();
 		}
 	}
 
@@ -159,7 +159,7 @@ public class Game extends ApplicationAdapter {
 
 			for (Iterator<Rectangle> alIter = aliens.iterator(); alIter.hasNext();) {
 				Rectangle alien = alIter.next();
-				alien.y -= 200 * Gdx.graphics.getDeltaTime();
+				alien.y -= 100 * Gdx.graphics.getDeltaTime();
 
 				// Remove aliens that go off-screen
 				if (alien.y + alien.height < 0) {
@@ -175,7 +175,7 @@ public class Game extends ApplicationAdapter {
 
 				//update speed alien (up difficulty)
 				if(score>100){
-					alien.y-=400*Gdx.graphics.getDeltaTime();
+					alien.y -= 150 * Gdx.graphics.getDeltaTime();
 				}
 
 				// Check for collisions between aliens and projectiles
