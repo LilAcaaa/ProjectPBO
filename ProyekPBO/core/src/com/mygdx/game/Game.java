@@ -22,6 +22,7 @@ public class Game extends ApplicationAdapter {
 	private SpriteBatch batch;
 	private int highScore = 0;
 
+	private int bossSpawnedCount = 0;
 
 	// Textures
 	private Texture playerTexture;
@@ -44,11 +45,6 @@ public class Game extends ApplicationAdapter {
 	private Rectangle boss;
 	private Rectangle skillUpgrade;
 
-	// Sound effects
-	private Sound explodingSound;
-	private Sound shootSound;
-	private Sound crashSound;
-
 	// Spawn
 	private long lastSpawnTime = 0;
 	private OrthographicCamera camera;
@@ -59,9 +55,13 @@ public class Game extends ApplicationAdapter {
 	private int hearts = 3;
 
 	// Projectile state
+	private static final long SHOT_DELAY_INITIAL = 1000000000;
+	private static final long SHOT_DELAY_DECREASE = 100000000;
+
+	// Projectile state
 	private boolean isProjectileActive = false;
 	private long lastShotTime = 0;
-	private static final long SHOT_DELAY = 1000000000;
+	private long shotDelay = SHOT_DELAY_INITIAL;
 
 	// Boss state
 	private boolean bossSpawned = false;
@@ -81,6 +81,9 @@ public class Game extends ApplicationAdapter {
 	private boolean gameStarted = false;
 	private boolean gameOver = false;
 	boolean isPaused = false;
+	// Sound effects
+	private AbstractSound explodingSound;
+	private AbstractSound shootSound;
 
 	@Override
 	public void create() {
@@ -99,9 +102,8 @@ public class Game extends ApplicationAdapter {
 		font = new BitmapFont();
 		font.getData().setScale(2);
 
-		explodingSound = Gdx.audio.newSound(Gdx.files.internal("explodingSound.wav"));
-		shootSound = Gdx.audio.newSound(Gdx.files.internal("shootSound.mp3"));
-
+		explodingSound = new ExplodingSound();
+		shootSound = new ShootSound();
 
 		player = new Rectangle();
 		player.x = 800 / 2 - 64 / 2;
@@ -135,11 +137,16 @@ public class Game extends ApplicationAdapter {
 		boss.setHeight(128);
 		bossHealth = 10;
 		bossSpawned = true;
+		if(bossHealth == 0) {
+			if (shotDelay >= 99999996) {
+				shotDelay = SHOT_DELAY_DECREASE - 2;
+			}
+		}
 	}
 
 	private void spawnProjectile() {
 		long currentTime = TimeUtils.nanoTime();
-		if (currentTime - lastShotTime >= SHOT_DELAY) {
+		if (currentTime - lastShotTime >= shotDelay) {
 			Rectangle projectile = new Rectangle();
 			projectile.y = player.y;
 			projectile.x = player.x + 15;
@@ -147,7 +154,7 @@ public class Game extends ApplicationAdapter {
 			projectile.setWidth(32);
 			projectiles.add(projectile);
 			isProjectileActive = true;
-			shootSound.play();
+			shootSound.playSound();
 			lastShotTime = currentTime;
 		}
 	}
@@ -201,7 +208,10 @@ public class Game extends ApplicationAdapter {
 		camera.update();
 		batch.setProjectionMatrix(camera.combined);
 		batch.begin();
-
+		if (score % 250 == 0 && score != 0 && bossSpawnedCount < score / 250) {
+			spawnBoss();
+			bossSpawnedCount++;
+		}
 		if (score > highScore) {
 			highScore = score;
 		}
@@ -272,11 +282,6 @@ public class Game extends ApplicationAdapter {
 					spawnProjectile();
 				}
 
-				// Spawn boss
-				if (score == 100 && !bossSpawned) {
-					spawnBoss();
-				}
-
 				// Spawn skill upgrade
 				if (score % 50 == 0 && score != 0 && !bossSpawned && !skillUpgradeSpawned) {
 					spawnSkillUpgrade();
@@ -294,7 +299,7 @@ public class Game extends ApplicationAdapter {
 
 					// Check for collision between boss and the player
 					if (boss.overlaps(player)) {
-						explodingSound.play();
+						explodingSound.playSound();
 						hearts--;
 						bossSpawned = false;
 					}
@@ -304,7 +309,7 @@ public class Game extends ApplicationAdapter {
 					while (projectileIterator.hasNext()) {
 						Rectangle projectile = projectileIterator.next();
 						if (boss.overlaps(projectile)) {
-							explodingSound.play();
+							explodingSound.playSound();
 							projectileIterator.remove();
 							bossHealth--;
 							if (bossHealth == 0) {
@@ -339,7 +344,7 @@ public class Game extends ApplicationAdapter {
 					while (alienIterator.hasNext()) {
 						Rectangle alien = alienIterator.next();
 						if (alien.overlaps(projectile)) {
-							explodingSound.play();
+							explodingSound.playSound();
 							projectileIterator.remove();
 							alienIterator.remove();
 							score += 10;
@@ -360,7 +365,7 @@ public class Game extends ApplicationAdapter {
 
 					// Check for collision between aliens and the player
 					if (alien.overlaps(player)) {
-						explodingSound.play();
+						explodingSound.playSound();
 						iter.remove();
 						hearts--;
 						spawnExplosion(alien.x, alien.y); // Spawn explosion at alien's position
@@ -371,7 +376,7 @@ public class Game extends ApplicationAdapter {
 					while (projectileIterator.hasNext()) {
 						Rectangle projectile = projectileIterator.next();
 						if (alien.overlaps(projectile)) {
-							explodingSound.play();
+							explodingSound.playSound();
 							projectileIterator.remove();
 							iter.remove();
 							score += 10;
@@ -385,7 +390,7 @@ public class Game extends ApplicationAdapter {
 					while (projectileIterator.hasNext()) {
 						Rectangle projectile = projectileIterator.next();
 						if (alien.overlaps(projectile)) {
-							explodingSound.play();
+							explodingSound.playSound();
 							projectileIterator.remove();
 							iter.remove();
 							score += 10;
@@ -423,7 +428,7 @@ public class Game extends ApplicationAdapter {
 					secondProjectile.setWidth(32);
 					projectiles.add(secondProjectile);
 					isProjectileActive = true;
-					shootSound.play();
+					shootSound.playSound();
 					skillUpgradeCollected = false;
 				}
 
