@@ -205,9 +205,25 @@ public class Game extends ApplicationAdapter {
 	@Override
 	public void render() {
 		ScreenUtils.clear(0, 0, 0.2f, 0);
+		if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+			isPaused = !isPaused;
+		}
+		if (isPaused) {
+			batch.begin();
+			font.draw(batch, "Game is paused", 290, 300);
+			font.draw(batch, "Press E to exit", 295, 250);
+			if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+				Gdx.app.exit();
+			}
+			batch.end();
+			return;
+		}
 		camera.update();
 		batch.setProjectionMatrix(camera.combined);
 		batch.begin();
+
+
+
 		if (score % 250 == 0 && score != 0 && bossSpawnedCount < score / 250) {
 			spawnBoss();
 			bossSpawnedCount++;
@@ -430,6 +446,15 @@ public class Game extends ApplicationAdapter {
 					isProjectileActive = true;
 					shootSound.playSound();
 					skillUpgradeCollected = false;
+					Rectangle thirdProjectile = new Rectangle();
+					thirdProjectile.y = player.y;
+					thirdProjectile.x = player.x -15;
+					thirdProjectile.setHeight(32);
+					thirdProjectile.setWidth(32);
+					projectiles.add(thirdProjectile);
+					isProjectileActive = true;
+					shootSound.playSound();
+					skillUpgradeCollected = false;
 				}
 
 			} else {
@@ -460,11 +485,6 @@ public class Game extends ApplicationAdapter {
 				explosionIterator.remove();
 				startTimeIterator.remove();
 			}
-		}
-
-
-		if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-			Gdx.app.exit();
 		}
 		batch.end();
 	}
