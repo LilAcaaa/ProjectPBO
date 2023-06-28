@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Array;
@@ -23,16 +24,21 @@ public class Game extends ApplicationAdapter {
 	private int highScore = 0;
 
 	private int bossSpawnedCount = 0;
+	private int health = 0;
+	private boolean isHealing = false;
+	private long lastHealTime = 0;
+	private static final long HEAL_DELAY = 3000000000L;
+
+	private int healSlot = 0;
 
 	// Textures
+	TextureRegion background;
 	private Texture playerTexture;
 	private Texture enemyTexture;
 	private Texture playerSkillTexture;
 	private Texture projectileTexture;
 	private Texture bossTexture;
 	private Texture skillUpgradeTexture;
-
-	private Texture heartsTexture;
 	private Texture explosionsTexture;
 	private Timer explosionTimer;
 
@@ -57,6 +63,7 @@ public class Game extends ApplicationAdapter {
 	// Projectile state
 	private static final long SHOT_DELAY_INITIAL = 1000000000;
 	private static final long SHOT_DELAY_DECREASE = 100000000;
+	private static final long SECOND_PROJECTILE_DELAY = 500000000;
 
 	// Projectile state
 	private boolean isProjectileActive = false;
@@ -65,11 +72,12 @@ public class Game extends ApplicationAdapter {
 
 	// Boss state
 	private boolean bossSpawned = false;
-	private int bossHealth = 10;
+	private int bossHealth = 30;
 
 	// Skill upgrade state
 	private boolean skillUpgradeSpawned = false;
 	private boolean skillUpgradeCollected = false;
+	private int projectileBurstCount = 1;
 	private long skillUpgradeTime;
 	private static final long SKILL_UPGRADE_DURATION = 10000000000L;
 	//update timer for explosion
@@ -89,9 +97,8 @@ public class Game extends ApplicationAdapter {
 	public void create() {
 		camera = new OrthographicCamera();
 		camera.setToOrtho(false, 800, 600);
-
 		batch = new SpriteBatch();
-		heartsTexture = new Texture("heart.png");
+		background = new TextureRegion(new Texture(Gdx.files.internal("background.jpg")),800,600);
 		playerTexture = new Texture("player.png");
 		enemyTexture = new Texture("alien_type1.png");
 		projectileTexture = new Texture("projectile.png");
@@ -135,7 +142,7 @@ public class Game extends ApplicationAdapter {
 		boss.y = 600;
 		boss.setWidth(128);
 		boss.setHeight(128);
-		bossHealth = 10;
+		bossHealth = 30;
 		bossSpawned = true;
 		if(bossHealth == 0) {
 			if (shotDelay >= 99999996) {
@@ -147,17 +154,20 @@ public class Game extends ApplicationAdapter {
 	private void spawnProjectile() {
 		long currentTime = TimeUtils.nanoTime();
 		if (currentTime - lastShotTime >= shotDelay) {
-			Rectangle projectile = new Rectangle();
-			projectile.y = player.y;
-			projectile.x = player.x + 15;
-			projectile.setHeight(32);
-			projectile.setWidth(32);
-			projectiles.add(projectile);
-			isProjectileActive = true;
-			shootSound.playSound();
+			for (int i = 0; i < projectileBurstCount; i++) {
+				Rectangle projectile = new Rectangle();
+				projectile.y = player.y + i * 30;
+				projectile.x = player.x + 15;
+				projectile.setHeight(32);
+				projectile.setWidth(32);
+				projectiles.add(projectile);
+				isProjectileActive = true;
+				shootSound.playSound();
+			}
 			lastShotTime = currentTime;
 		}
 	}
+
 	private void spawnExplosion(float x, float y) {
 		Rectangle explosion = new Rectangle(x, y, explosionsTexture.getWidth(), explosionsTexture.getHeight());
 		explosions.add(explosion);
@@ -184,7 +194,7 @@ public class Game extends ApplicationAdapter {
 		isProjectileActive = false;
 		gameStarted = true;
 		gameOver = false;
-		bossHealth = 10;
+		bossHealth = 30;
 		lastSpawnTime = TimeUtils.nanoTime();
 		skillUpgradeTime = 0;
 		lastShotTime = 0;
@@ -200,16 +210,32 @@ public class Game extends ApplicationAdapter {
 		skillUpgrade.setHeight(64);
 		skillUpgradeSpawned = true;
 	}
-
+	private void healPlayer() {
+		long currentTime = TimeUtils.nanoTime();
+		if (currentTime - lastHealTime >= HEAL_DELAY && hearts < 3 && healSlot > 0) {
+			isHealing = true;
+			lastHealTime = currentTime;
+			hearts += 1;
+			healSlot -= 1;
+			if (hearts > 3) {
+				hearts = 3;
+			}
+		}
+		if (healSlot == 0) {
+			isHealing = false;
+		}
+	}
 
 	@Override
 	public void render() {
 		ScreenUtils.clear(0, 0, 0.2f, 0);
+		batch.begin();
+		batch.draw(background,0,0,800,600);
 		if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
 			isPaused = !isPaused;
 		}
 		if (isPaused) {
-			batch.begin();
+
 			font.draw(batch, "Game is paused", 290, 300);
 			font.draw(batch, "Press E to exit", 295, 250);
 			if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
@@ -220,9 +246,6 @@ public class Game extends ApplicationAdapter {
 		}
 		camera.update();
 		batch.setProjectionMatrix(camera.combined);
-		batch.begin();
-
-
 
 		if (score % 250 == 0 && score != 0 && bossSpawnedCount < score / 250) {
 			spawnBoss();
@@ -238,9 +261,11 @@ public class Game extends ApplicationAdapter {
 				gameStarted = true;
 			}
 		} else if (!gameOver) {
-			font.draw(batch, hearts + "", 770, 580);
 			batch.draw(playerTexture, player.x, player.y);
-
+			if (Gdx.input.isKeyPressed(Input.Keys.H)) {
+				healPlayer();
+			}
+			font.draw(batch, "Health: " + hearts, 18, 580);
 			for (Rectangle alien : aliens) {
 				batch.draw(enemyTexture, alien.x, alien.y);
 			}
@@ -258,7 +283,8 @@ public class Game extends ApplicationAdapter {
 				batch.draw(skillUpgradeTexture, skillUpgrade.x, skillUpgrade.y);
 			}
 
-			font.draw(batch, score + "", 700, 550);
+			font.draw(batch, "Score: " + score, 15, 550);
+			font.draw(batch, "Heal Slot: " + healSlot, 18, 520);
 			if (hearts != 0) {
 				// Move player
 				if (Gdx.input.isKeyPressed(Input.Keys.A)) {
@@ -304,19 +330,21 @@ public class Game extends ApplicationAdapter {
 				}
 
 
+
 				// Update boss position
 				if (bossSpawned) {
 					boss.y -= 40 * Gdx.graphics.getDeltaTime();
 
 					// Remove boss if it goes off-screen
 					if (boss.y + boss.height < 0) {
+						hearts=0;
 						bossSpawned = false;
 					}
 
 					// Check for collision between boss and the player
 					if (boss.overlaps(player)) {
 						explodingSound.playSound();
-						hearts--;
+						hearts=0;
 						bossSpawned = false;
 					}
 
@@ -350,6 +378,10 @@ public class Game extends ApplicationAdapter {
 						skillUpgradeSpawned = false;
 						skillUpgradeCollected = true;
 						skillUpgradeTime = TimeUtils.nanoTime();
+						healSlot += 1;
+						if (healSlot > 3) {
+							healSlot = 3;
+						}
 					}
 				}
 				// Check for collision between aliens and player's projectiles
@@ -422,7 +454,7 @@ public class Game extends ApplicationAdapter {
 						projectile.y += 300 * Gdx.graphics.getDeltaTime();
 						if (projectile.y > 600) {
 							projectileIterator.remove();
-							isProjectileActive = false;
+							isProjectileActive = true;
 						}
 					}
 				}
@@ -434,27 +466,33 @@ public class Game extends ApplicationAdapter {
 					}
 				}
 
-				// Shoot two projectiles if skill upgrade is active
+				// Shoot upgraded projectiles if skill upgrade is active
 				if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && skillUpgradeCollected) {
+					if (projectileBurstCount == 1) {
+						projectileBurstCount = 2;
+					} else {
+						projectileBurstCount = 3;
+					}
 					spawnProjectile();
-					Rectangle secondProjectile = new Rectangle();
-					secondProjectile.y = player.y;
-					secondProjectile.x = player.x + 45;
-					secondProjectile.setHeight(32);
-					secondProjectile.setWidth(32);
-					projectiles.add(secondProjectile);
-					isProjectileActive = true;
 					shootSound.playSound();
 					skillUpgradeCollected = false;
-					Rectangle thirdProjectile = new Rectangle();
-					thirdProjectile.y = player.y;
-					thirdProjectile.x = player.x -15;
-					thirdProjectile.setHeight(32);
-					thirdProjectile.setWidth(32);
-					projectiles.add(thirdProjectile);
-					isProjectileActive = true;
-					shootSound.playSound();
-					skillUpgradeCollected = false;
+//					Rectangle secondProjectile = new Rectangle();
+//					secondProjectile.y = player.y;
+//					secondProjectile.x = player.x + 15;
+//					secondProjectile.setHeight(32);
+//					secondProjectile.setWidth(32);
+//					projectiles.add(secondProjectile);
+//					isProjectileActive = true;
+//					shootSound.playSound();
+//
+//					Rectangle thirdProjectile = new Rectangle();
+//					thirdProjectile.y = player.y;
+//					thirdProjectile.x = player.x -15;
+//					thirdProjectile.setHeight(32);
+//					thirdProjectile.setWidth(32);
+//					projectiles.add(thirdProjectile);
+//					isProjectileActive = true;
+//					shootSound.playSound();
 				}
 
 			} else {
@@ -494,7 +532,6 @@ public class Game extends ApplicationAdapter {
 		batch.dispose();
 		playerTexture.dispose();
 		enemyTexture.dispose();
-		heartsTexture.dispose();
 		projectileTexture.dispose();
 		bossTexture.dispose();
 		skillUpgradeTexture.dispose();
